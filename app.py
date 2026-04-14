@@ -59,7 +59,7 @@ df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
 # FILTER 1 — DATA UTAMA
 # ======================
 # ======================
-st.subheader("Informasi Umum")
+st.subheader("🔎 Informasi Umum")
 
 df_main = df.copy()
 
@@ -92,7 +92,7 @@ if f1_ku != "All":
 # ======================
 # TABEL UTAMA
 # ======================
-st.subheader("Informasi Umum")
+st.subheader("📊 Tabel Informasi Umum")
 
 df_main_display = df_main[[
     "tanggal","komoditas","kualitas",
@@ -111,7 +111,7 @@ st.dataframe(df_main_display, use_container_width=True)
 # FILTER 2 — ANALISIS
 # ======================
 # ======================
-st.subheader("Analisis")
+st.subheader("📝 Analisis")
 
 df_analysis_filter = df.copy()
 
@@ -159,7 +159,7 @@ def clean_text(text):
 # ======================
 # INSIGHT
 # ======================
-st.subheader("Insight")
+st.subheader("🧠 Insight")
 
 if not df_analysis.empty:
 
