@@ -22,56 +22,16 @@ import pandas as pd
 import plotly.express as px
 import re
 
-# ======================
-# CONFIG
-# ======================
 st.set_page_config(page_title="Si Alpha Dashboard", layout="wide")
 
 # ======================
-# STYLE (PREMIUM)
+# STYLE
 # ======================
 st.markdown("""
 <style>
-.main {
-    background-color: #f8fafc;
-}
-
-.card {
-    background-color: white;
-    padding: 18px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-}
-
-.title-center {
-    text-align: center;
-    margin-top: 10px;
-    margin-bottom: 10px;
-}
-
-.subtitle {
-    font-size:14px;
-    color: gray;
-    letter-spacing: 2px;
-}
-
-.title-main {
-    font-size:30px;
-    font-weight:600;
-    color:#2c3e50;
-}
-
-.box-red {
-    background-color:#fdecea;
-    padding:18px;
-    border-radius:12px;
-}
-
-.box-green {
-    background-color:#e8f5e9;
-    padding:18px;
-    border-radius:12px;
-}
+.card {background:white;padding:18px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.06);}
+.box-red {background:#fdecea;padding:18px;border-radius:12px;}
+.box-green {background:#e8f5e9;padding:18px;border-radius:12px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -79,143 +39,115 @@ st.markdown("""
 # HEADER
 # ======================
 st.markdown("""
-<div class="title-center">
-    <div class="subtitle">DASHBOARD</div>
-    <div class="title-main">SI ALPHA</div>
+<div style='text-align:center'>
+<div style='font-size:14px;color:gray;letter-spacing:2px'>DASHBOARD</div>
+<div style='font-size:30px;font-weight:600;color:#2c3e50'>SI ALPHA</div>
 </div>
+<hr>
 """, unsafe_allow_html=True)
-
-st.markdown("<hr>", unsafe_allow_html=True)
 
 # ======================
 # LOAD DATA
 # ======================
-url = "https://docs.google.com/spreadsheets/d/1EhwFtO0nBm4w10yZYr18Jft77lVvUtUN/export?format=xlsx"
-
+url = "https://docs.google.com/spreadsheets/d/FILE_ID/export?format=xlsx"
 df = pd.read_excel(url)
 df.columns = df.columns.str.strip().str.lower()
 
 # ======================
 # PROCESS
 # ======================
-df["tanggal"] = pd.to_datetime(df["tanggal"], errors='coerce')
+df["tanggal"] = pd.to_datetime(df["tanggal"])
 df["bulan"] = df["tanggal"].dt.to_period("M").astype(str)
-
-df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='coerce')
-df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
-df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
-
-df["persentase_perubahan"] = df["persentase_perubahan"].fillna(0)
-df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
+df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='coerce').fillna(0)
 
 # ======================
-# FILTER (CARD STYLE)
+# FILTER DATA UTAMA
 # ======================
-st.markdown("### 🔎 Filter Data")
+st.markdown("### 📊 Data Utama")
 
-k1,k2,k3,k4 = st.columns(4)
+c1,c2,c3,c4 = st.columns(4)
 
 kuesioner = ["All"] + sorted(df["jenis_kuesioner"].astype(str).unique())
 bulan = ["All"] + sorted(df["bulan"].dropna().unique())
 komoditas = ["All"] + sorted(df["komoditas"].astype(str).unique())
 kualitas = ["All"] + sorted(df["kualitas"].astype(str).unique())
 
-f1 = k1.selectbox("Kuesioner", kuesioner)
-f2 = k2.selectbox("Bulan", bulan)
-f3 = k3.selectbox("Komoditas", komoditas)
-f4 = k4.selectbox("Kualitas", kualitas)
+f1 = c1.selectbox("Kuesioner", kuesioner)
+f2 = c2.selectbox("Bulan", bulan)
+f3 = c3.selectbox("Komoditas", komoditas)
+f4 = c4.selectbox("Kualitas", kualitas)
 
 df_main = df.copy()
+if f1!="All": df_main = df_main[df_main["jenis_kuesioner"]==f1]
+if f2!="All": df_main = df_main[df_main["bulan"]==f2]
+if f3!="All": df_main = df_main[df_main["komoditas"]==f3]
+if f4!="All": df_main = df_main[df_main["kualitas"]==f4]
 
-if f1 != "All": df_main = df_main[df_main["jenis_kuesioner"] == f1]
-if f2 != "All": df_main = df_main[df_main["bulan"] == f2]
-if f3 != "All": df_main = df_main[df_main["komoditas"] == f3]
-if f4 != "All": df_main = df_main[df_main["kualitas"] == f4]
-
-# ======================
-# DATA TABLE
-# ======================
-st.markdown("### 📊 Data Utama")
-
-df_display = df_main.copy()
-df_display["tanggal"] = df_display["tanggal"].dt.date
-df_display["harga sebelum"] = df_display["harga sebelum"].map(lambda x: f"Rp {x:,.0f}")
-df_display["harga sekarang"] = df_display["harga sekarang"].map(lambda x: f"Rp {x:,.0f}")
-df_display["persentase_perubahan"] = df_display["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
-
-st.dataframe(df_display, use_container_width=True)
+st.dataframe(df_main, use_container_width=True)
 
 # ======================
-# ANALISIS
+# ANALISIS FILTER
 # ======================
-st.markdown("### 🧠 Insight")
+st.markdown("### 🧠 Analisis")
 
-df_analysis = df_main[["komoditas","kualitas","persentase_perubahan","catatan"]].copy()
+a1,a2,a3,a4 = st.columns(4)
 
-def clean_text(text):
-    text = text.lower().strip()
-    text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text
+fa1 = a1.selectbox("Kuesioner", kuesioner, key="a1")
+fa2 = a2.selectbox("Bulan", bulan, key="a2")
+fa3 = a3.selectbox("Komoditas", komoditas, key="a3")
+fa4 = a4.selectbox("Kualitas", kualitas, key="a4")
 
+df_analysis = df.copy()
+if fa1!="All": df_analysis = df_analysis[df_analysis["jenis_kuesioner"]==fa1]
+if fa2!="All": df_analysis = df_analysis[df_analysis["bulan"]==fa2]
+if fa3!="All": df_analysis = df_analysis[df_analysis["komoditas"]==fa3]
+if fa4!="All": df_analysis = df_analysis[df_analysis["kualitas"]==fa4]
+
+# ======================
+# INSIGHT CARD
+# ======================
 if not df_analysis.empty:
+    rata2 = df_analysis["persentase_perubahan"].mean()
+    arah = "inflasi" if rata2>0 else "deflasi"
+    warna = "box-red" if arah=="inflasi" else "box-green"
 
-    rata2 = df_analysis["persentase_perubahan"].mean().round(2)
-    df_analysis["abs"] = df_analysis["persentase_perubahan"].abs()
-    df_analysis = df_analysis.sort_values("abs", ascending=False)
-    top = df_analysis.iloc[0]
+    st.markdown(f"<div class='card {warna}'>Rata-rata {arah} sebesar {rata2:.2f}%</div>", unsafe_allow_html=True)
 
-    arah = "inflasi" if rata2 > 0 else "deflasi"
+# ======================
+# TABEL INFLASI DEFLASI
+# ======================
+df_naik = df_analysis[df_analysis["persentase_perubahan"]>0]
+df_turun = df_analysis[df_analysis["persentase_perubahan"]<0]
 
-    df_top = df_analysis[
-        (df_analysis["komoditas"] == top["komoditas"]) &
-        (df_analysis["kualitas"] == top["kualitas"])
-    ]
+c1,c2 = st.columns(2)
 
-    catatan = df_top["catatan"].dropna().tolist()
-    unik = []
+with c1:
+    st.markdown("#### 🔴 Inflasi")
+    st.dataframe(df_naik, use_container_width=True)
 
-    for c in [clean_text(x) for x in catatan]:
-        if not any(c in u or u in c for u in unik):
-            unik.append(c)
-
-    sebab = ", ".join(unik).capitalize()
-
-    narasi = f"""
-    Pergerakan harga menunjukkan kecenderungan <b>{arah}</b> sebesar <b>{rata2:.2f}%</b>.
-    Dipengaruhi oleh <b>{top['komoditas']}</b> ({top['kualitas']}) sebesar <b>{top['persentase_perubahan']:.2f}%</b>.
-    Penyebab utama: {sebab}.
-    """
-
-    warna = "box-red" if arah == "inflasi" else "box-green"
-
-    st.markdown(f"<div class='card {warna}'>{narasi}</div>", unsafe_allow_html=True)
+with c2:
+    st.markdown("#### 🟢 Deflasi")
+    st.dataframe(df_turun, use_container_width=True)
 
 # ======================
 # HARGA TIDUR
 # ======================
-df_tidur = df[df["persentase_perubahan"] == 0].copy()
+df_tidur = df[df["persentase_perubahan"]==0].copy()
 df_tidur["bulan_dt"] = df_tidur["tanggal"].dt.to_period("M")
-
-tidur_group = df_tidur.groupby(["komoditas","kualitas"])["bulan_dt"].nunique().reset_index()
-tidur_final = tidur_group[tidur_group["bulan_dt"] >= 3]
+tidur = df_tidur.groupby(["komoditas","kualitas"])["bulan_dt"].nunique().reset_index()
+tidur = tidur[tidur["bulan_dt"]>=3]
 
 st.markdown("### 🛌 Harga Tidur")
-
-if not tidur_final.empty:
-    st.dataframe(tidur_final[["komoditas","kualitas"]], use_container_width=True)
-else:
-    st.info("Tidak ada harga tidur")
+st.dataframe(tidur[["komoditas","kualitas"]], use_container_width=True)
 
 # ======================
 # GRAFIK
 # ======================
 st.markdown("### 📈 Tren Harga")
 
-kom = st.selectbox("Pilih Komoditas", sorted(df["komoditas"].unique()))
-df_grafik = df[df["komoditas"] == kom]
-
-df_grafik = df_grafik.groupby(["tanggal","kualitas"], as_index=False)["harga sekarang"].mean()
+kom = st.selectbox("Komoditas Grafik", sorted(df["komoditas"].unique()))
+df_grafik = df[df["komoditas"]==kom]
+df_grafik = df_grafik.groupby(["tanggal","kualitas"],as_index=False)["harga sekarang"].mean()
 
 fig = px.line(df_grafik, x="tanggal", y="harga sekarang", color="kualitas")
 st.plotly_chart(fig, use_container_width=True)
