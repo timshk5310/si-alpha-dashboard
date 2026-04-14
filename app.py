@@ -29,9 +29,27 @@ st.set_page_config(page_title="Si Alpha Dashboard", layout="wide")
 # ======================
 st.markdown("""
 <style>
-.card {background:white;padding:18px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.06);}
-.box-red {background:#fdecea;padding:18px;border-radius:12px;}
-.box-green {background:#e8f5e9;padding:18px;border-radius:12px;}
+.card {
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.06);
+    color:#2c3e50;
+}
+
+.box-red {
+    background:#fdecea;
+    padding:18px;
+    border-radius:12px;
+    color:#2c3e50;
+}
+
+.box-green {
+    background:#e8f5e9;
+    padding:18px;
+    border-radius:12px;
+    color:#2c3e50;
+}
 </style>
 """, unsafe_allow_html=True)
 
