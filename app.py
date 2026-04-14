@@ -3,7 +3,7 @@ import streamlit as st
 # ======================
 # LOGIN SEDERHANA
 # ======================
-PASSWORD = "sialpha5310"  # ganti sesuai keinginan
+PASSWORD = st.secrets["password"]  # ganti sesuai keinginan
 
 if "login" not in st.session_state:
     st.session_state["login"] = False
