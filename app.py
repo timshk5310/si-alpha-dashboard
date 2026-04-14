@@ -49,7 +49,7 @@ st.markdown("""
 # ======================
 # LOAD DATA
 # ======================
-url = "https://docs.google.com/spreadsheets/d/FILE_ID/export?format=xlsx"
+url = "https://docs.google.com/spreadsheets/d/1EhwFtO0nBm4w10yZYr18Jft77lVvUtUN/export?format=xlsx"
 df = pd.read_excel(url)
 df.columns = df.columns.str.strip().str.lower()
 
