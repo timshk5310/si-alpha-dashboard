@@ -1,4 +1,30 @@
 import streamlit as st
+import requests
+
+# ======================
+# LOGIN GOOGLE
+# ======================
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+
+def login_google():
+    client_id = st.secrets["google"]["client_id"]
+    redirect_uri = "https://share.streamlit.io/oauth2callback"
+
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={client_id}"
+        "&response_type=code"
+        "&scope=openid%20email"
+        f"&redirect_uri={redirect_uri}"
+    )
+
+    st.markdown(f"### 🔐 [Login dengan Google]({auth_url})")
+
+# Kalau belum login → stop app
+if st.session_state["user"] is None:
+    login_google()
+    st.stop()
 import pandas as pd
 import plotly.express as px
 import re
