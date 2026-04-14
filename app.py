@@ -1,78 +1,26 @@
 import streamlit as st
-import requests
 
 # ======================
-# LOGIN GOOGLE
+# LOGIN CHECK (STREAMLIT BUILT-IN)
 # ======================
-if "user" not in st.session_state:
-    st.session_state["user"] = None
+user = st.experimental_user
 
-def get_user_info(code):
-    client_id = st.secrets["google"]["client_id"]
-    client_secret = st.secrets["google"]["client_secret"]
-
-    token_url = "https://oauth2.googleapis.com/token"
-
-    data = {
-        "code": code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": "https://share.streamlit.io/oauth2callback",
-        "grant_type": "authorization_code",
-    }
-
-    token_response = requests.post(token_url, data=data).json()
-
-    access_token = token_response.get("access_token")
-
-    user_info = requests.get(
-        "https://www.googleapis.com/oauth2/v1/userinfo",
-        params={"access_token": access_token},
-    ).json()
-
-    return user_info
-
-# ======================
-# HANDLE LOGIN
-# ======================
-query_params = st.query_params
-
-if "code" in query_params:
-    user = get_user_info(query_params["code"])
-    st.session_state["user"] = user
-
-# ======================
-# LOGIN BUTTON
-# ======================
-if st.session_state["user"] is None:
-    client_id = st.secrets["google"]["client_id"]
-
-    auth_url = (
-        "https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={client_id}"
-        "&response_type=code"
-        "&scope=openid%20email"
-        "&redirect_uri=https://share.streamlit.io/oauth2callback"
-    )
-
-    st.markdown(f"### 🔐 [Login dengan Google]({auth_url})")
+if user is None:
+    st.warning("Silakan login dulu melalui Streamlit")
     st.stop()
 
 # ======================
-# TAMPILKAN USER
+# BATASI EMAIL
 # ======================
-st.success(f"Login sebagai: {st.session_state['user']['email']}")
-
-# =====================
-# Daftar Email yang di perbolehkan 
-# =====================
 ALLOWED_EMAILS = [
     "timshk5310@gmail.com"
 ]
 
-if st.session_state["user"]["email"] not in ALLOWED_EMAILS:
+if user.email not in ALLOWED_EMAILS:
     st.error("Akses ditolak")
     st.stop()
+
+st.success(f"Login sebagai: {user.email}")
 
 import pandas as pd
 import plotly.express as px
