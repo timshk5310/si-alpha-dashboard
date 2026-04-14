@@ -215,6 +215,47 @@ st.subheader("🟢 Deflasi")
 st.dataframe(df_turun[["komoditas","kualitas","persentase_perubahan","catatan"]], width="stretch")
 
 # ======================
+# HARGA TIDUR (3 BULAN BERTURUT-TURUT = 0)
+# ======================
+
+# proses
+df_tidur = df.copy()
+df_tidur = df_tidur.sort_values("tanggal")
+
+# ambil yang perubahan = 0
+df_tidur = df_tidur[df_tidur["persentase_perubahan"] == 0]
+
+# buat bulan
+df_tidur["bulan_dt"] = pd.to_datetime(df_tidur["tanggal"]).dt.to_period("M")
+
+# hitung jumlah bulan unik per komoditas + kualitas
+tidur_group = (
+    df_tidur
+    .groupby(["komoditas", "kualitas"])["bulan_dt"]
+    .nunique()
+    .reset_index()
+)
+
+# ambil yang >= 3 bulan
+tidur_final = tidur_group[tidur_group["bulan_dt"] >= 3]
+
+# ======================
+# TAMPILKAN
+# ======================
+st.markdown("""
+### 🛌 Harga Tidur
+<small>Komoditas yang tidak mengalami perubahan harga selama 3 bulan berturut-turut</small>
+""", unsafe_allow_html=True)
+
+if not tidur_final.empty:
+    st.dataframe(
+        tidur_final[["komoditas", "kualitas"]],
+        width="stretch"
+    )
+else:
+    st.warning("Tidak ada komoditas dengan harga tidur")
+
+# ======================
 # GRAFIK
 # ======================
 st.subheader("📈 Tren Harga")
