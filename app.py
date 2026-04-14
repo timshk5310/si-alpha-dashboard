@@ -55,48 +55,44 @@ df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
 df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
 
 # ======================
-# FILTER DINAMIS
 # ======================
-st.subheader("Filter Data")
+# FILTER 1 — DATA UTAMA
+# ======================
+# ======================
+st.subheader("Filter Data Utama")
 
-df_filter = df.copy()
+df_main = df.copy()
 
 c1,c2,c3,c4 = st.columns(4)
 
-# Kuesioner
-kuesioner_list = ["All"] + sorted(df_filter["jenis_kuesioner"].astype(str).unique())
-f_k = c1.selectbox("Kuesioner", kuesioner_list)
+kuesioner_list = ["All"] + sorted(df_main["jenis_kuesioner"].astype(str).unique())
+f1_k = c1.selectbox("Kuesioner", kuesioner_list)
 
-if f_k != "All":
-    df_filter = df_filter[df_filter["jenis_kuesioner"] == f_k]
+if f1_k != "All":
+    df_main = df_main[df_main["jenis_kuesioner"] == f1_k]
 
-# Bulan (dinamis)
-bulan_list = ["All"] + sorted(df_filter["bulan"].dropna().unique())
-f_b = c2.selectbox("Bulan", bulan_list)
+bulan_list = ["All"] + sorted(df_main["bulan"].dropna().unique())
+f1_b = c2.selectbox("Bulan", bulan_list)
 
-if f_b != "All":
-    df_filter = df_filter[df_filter["bulan"] == f_b]
+if f1_b != "All":
+    df_main = df_main[df_main["bulan"] == f1_b]
 
-# Komoditas (dinamis)
-komoditas_list = ["All"] + sorted(df_filter["komoditas"].astype(str).unique())
-f_ko = c3.selectbox("Komoditas", komoditas_list)
+komoditas_list = ["All"] + sorted(df_main["komoditas"].astype(str).unique())
+f1_ko = c3.selectbox("Komoditas", komoditas_list)
 
-if f_ko != "All":
-    df_filter = df_filter[df_filter["komoditas"] == f_ko]
+if f1_ko != "All":
+    df_main = df_main[df_main["komoditas"] == f1_ko]
 
-# Kualitas (dinamis)
-kualitas_list = ["All"] + sorted(df_filter["kualitas"].astype(str).unique())
-f_ku = c4.selectbox("Kualitas", kualitas_list)
+kualitas_list = ["All"] + sorted(df_main["kualitas"].astype(str).unique())
+f1_ku = c4.selectbox("Kualitas", kualitas_list)
 
-if f_ku != "All":
-    df_filter = df_filter[df_filter["kualitas"] == f_ku]
+if f1_ku != "All":
+    df_main = df_main[df_main["kualitas"] == f1_ku]
 
 # ======================
 # TABEL UTAMA
 # ======================
 st.subheader("Data Utama")
-
-df_main = df_filter.copy()
 
 df_main_display = df_main[[
     "tanggal","komoditas","kualitas",
@@ -111,11 +107,43 @@ df_main_display["persentase_perubahan"] = df_main_display["persentase_perubahan"
 st.dataframe(df_main_display, use_container_width=True)
 
 # ======================
-# ANALISIS (FILTER SAMA)
 # ======================
-st.subheader("Analisis")
+# FILTER 2 — ANALISIS
+# ======================
+# ======================
+st.subheader("Filter Analisis")
 
-df_analysis = df_filter[[
+df_analysis_filter = df.copy()
+
+a1,a2,a3,a4 = st.columns(4)
+
+fa_k = a1.selectbox("Kuesioner", ["All"] + sorted(df["jenis_kuesioner"].astype(str).unique()), key="a1")
+
+if fa_k != "All":
+    df_analysis_filter = df_analysis_filter[df_analysis_filter["jenis_kuesioner"] == fa_k]
+
+bulan_dyn = ["All"] + sorted(df_analysis_filter["bulan"].dropna().unique())
+fa_b = a2.selectbox("Bulan", bulan_dyn, key="a2")
+
+if fa_b != "All":
+    df_analysis_filter = df_analysis_filter[df_analysis_filter["bulan"] == fa_b]
+
+kom_dyn = ["All"] + sorted(df_analysis_filter["komoditas"].astype(str).unique())
+fa_ko = a3.selectbox("Komoditas", kom_dyn, key="a3")
+
+if fa_ko != "All":
+    df_analysis_filter = df_analysis_filter[df_analysis_filter["komoditas"] == fa_ko]
+
+kualitas_dyn = ["All"] + sorted(df_analysis_filter["kualitas"].astype(str).unique())
+fa_ku = a4.selectbox("Kualitas", kualitas_dyn, key="a4")
+
+if fa_ku != "All":
+    df_analysis_filter = df_analysis_filter[df_analysis_filter["kualitas"] == fa_ku]
+
+# ======================
+# ANALISIS DATA
+# ======================
+df_analysis = df_analysis_filter[[
     "komoditas","kualitas","persentase_perubahan","catatan"
 ]].copy()
 
@@ -129,8 +157,10 @@ def clean_text(text):
     return text
 
 # ======================
-# INSIGHT (VERSI KAMU)
+# INSIGHT
 # ======================
+st.subheader("Insight")
+
 if not df_analysis.empty:
 
     rata2 = df_analysis["persentase_perubahan"].mean().round(2)
@@ -159,10 +189,10 @@ if not df_analysis.empty:
     sebab = sebab.capitalize() if sebab else "Tidak ada keterangan utama"
 
     narasi = (
-        f"Pada {f_b}, terjadi {arah} sebesar {rata2:.2f}%. "
-        f"Perubahan utama berasal dari {top['komoditas']} ({top['kualitas']}) "
+        f"Pada {fa_b}, terjadi {arah} sebesar {rata2:.2f}%. "
+        f"Komoditas utama: {top['komoditas']} ({top['kualitas']}) "
         f"dengan perubahan {top['persentase_perubahan']:.2f}%. "
-        f"Penyebab utama: {sebab}."
+        f"Penyebab: {sebab}."
     )
 
     st.info(narasi)
@@ -196,7 +226,6 @@ tidur_group = df_tidur.groupby(["komoditas","kualitas"])["bulan_dt"].nunique().r
 tidur_final = tidur_group[tidur_group["bulan_dt"] >= 3]
 
 st.subheader("🛌 Harga Tidur")
-
 st.dataframe(tidur_final[["komoditas","kualitas"]], use_container_width=True)
 
 # ======================
