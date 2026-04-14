@@ -1,27 +1,22 @@
 import streamlit as st
 
 # ======================
-# LOGIN CHECK (STREAMLIT BUILT-IN)
+# LOGIN SEDERHANA
 # ======================
-user = st.experimental_user
+PASSWORD = "sialpha5310"  # ganti sesuai keinginan
 
-if user is None:
-    st.warning("Silakan login dulu melalui Streamlit")
-    st.stop()
+if "login" not in st.session_state:
+    st.session_state["login"] = False
 
-# ======================
-# BATASI EMAIL
-# ======================
-ALLOWED_EMAILS = [
-    "timshk5310@gmail.com"
-]
+if not st.session_state["login"]:
+    pwd = st.text_input("Masukkan password", type="password")
 
-if user.email not in ALLOWED_EMAILS:
-    st.error("Akses ditolak")
-    st.stop()
-
-st.success(f"Login sebagai: {user.email}")
-
+    if pwd == PASSWORD:
+        st.session_state["login"] = True
+        st.rerun()
+    else:
+        st.stop()
+        
 import pandas as pd
 import plotly.express as px
 import re
