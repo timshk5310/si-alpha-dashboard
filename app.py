@@ -37,9 +37,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ======================
-# LOAD DATA
+# LOAD DATA DARI GOOGLE SHEETS
 # ======================
-df = pd.read_excel("master_data.xlsx")
+url = "https://docs.google.com/spreadsheets/d/1EhwFtO0nBm4w10yZYr18Jft77lVvUtUN/export?format=xlsx"
+
+df = pd.read_excel(url)
 df.columns = df.columns.str.strip().str.lower()
 
 # ======================
