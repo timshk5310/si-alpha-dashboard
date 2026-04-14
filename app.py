@@ -1,14 +1,15 @@
 import streamlit as st
 
 # ======================
-# LOGIN SEDERHANA
+# LOGIN
 # ======================
-PASSWORD = st.secrets["password"]  # ganti sesuai keinginan
+PASSWORD = st.secrets["password"]
 
 if "login" not in st.session_state:
     st.session_state["login"] = False
 
 if not st.session_state["login"]:
+    st.markdown("## 🔐 Login SiAlpha")
     pwd = st.text_input("Masukkan password", type="password")
 
     if pwd == PASSWORD:
@@ -16,7 +17,7 @@ if not st.session_state["login"]:
         st.rerun()
     else:
         st.stop()
-        
+
 import pandas as pd
 import plotly.express as px
 import re
@@ -27,25 +28,75 @@ import re
 st.set_page_config(page_title="Si Alpha Dashboard", layout="wide")
 
 # ======================
-# STYLE
+# STYLE (PREMIUM)
 # ======================
 st.markdown("""
 <style>
-.box-red {background-color:#fdecea;padding:15px;border-radius:10px;color:black;}
-.box-green {background-color:#e8f5e9;padding:15px;border-radius:10px;color:black;}
+.main {
+    background-color: #f8fafc;
+}
+
+.card {
+    background-color: white;
+    padding: 18px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.title-center {
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size:14px;
+    color: gray;
+    letter-spacing: 2px;
+}
+
+.title-main {
+    font-size:30px;
+    font-weight:600;
+    color:#2c3e50;
+}
+
+.box-red {
+    background-color:#fdecea;
+    padding:18px;
+    border-radius:12px;
+}
+
+.box-green {
+    background-color:#e8f5e9;
+    padding:18px;
+    border-radius:12px;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ======================
-# LOAD DATA DARI GOOGLE SHEETS
+# HEADER
 # ======================
-url = "https://docs.google.com/spreadsheets/d/1EhwFtO0nBm4w10yZYr18Jft77lVvUtUN/export?format=xlsx"
+st.markdown("""
+<div class="title-center">
+    <div class="subtitle">DASHBOARD</div>
+    <div class="title-main">SI ALPHA</div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ======================
+# LOAD DATA
+# ======================
+url = "https://docs.google.com/spreadsheets/d/FILE_ID/export?format=xlsx"
 
 df = pd.read_excel(url)
 df.columns = df.columns.str.strip().str.lower()
 
 # ======================
-# PROCESS DATA
+# PROCESS
 # ======================
 df["tanggal"] = pd.to_datetime(df["tanggal"], errors='coerce')
 df["bulan"] = df["tanggal"].dt.to_period("M").astype(str)
@@ -54,217 +105,117 @@ df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='c
 df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
 df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
 
-# JANGAN HAPUS DATA
 df["persentase_perubahan"] = df["persentase_perubahan"].fillna(0)
 df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
 
 # ======================
-# HEADER
+# FILTER (CARD STYLE)
 # ======================
-st.title("📊 SI ALPHA DASHBOARD")
+st.markdown("### 🔎 Filter Data")
 
-# ======================
-# DATA UTAMA
-# ======================
-st.subheader("Data Utama")
+k1,k2,k3,k4 = st.columns(4)
 
-kuesioner_list = ["All"] + sorted(df["jenis_kuesioner"].astype(str).unique())
-bulan_list = ["All"] + sorted(df["bulan"].dropna().unique())
-komoditas_list = ["All"] + sorted(df["komoditas"].astype(str).unique())
-kualitas_list = ["All"] + sorted(df["kualitas"].astype(str).unique())
+kuesioner = ["All"] + sorted(df["jenis_kuesioner"].astype(str).unique())
+bulan = ["All"] + sorted(df["bulan"].dropna().unique())
+komoditas = ["All"] + sorted(df["komoditas"].astype(str).unique())
+kualitas = ["All"] + sorted(df["kualitas"].astype(str).unique())
 
-c1,c2,c3,c4 = st.columns(4)
-
-f1_k = c1.selectbox("Kuesioner", kuesioner_list)
-f1_b = c2.selectbox("Bulan", bulan_list)
-f1_ko = c3.selectbox("Komoditas", komoditas_list)
-f1_ku = c4.selectbox("Kualitas", kualitas_list)
+f1 = k1.selectbox("Kuesioner", kuesioner)
+f2 = k2.selectbox("Bulan", bulan)
+f3 = k3.selectbox("Komoditas", komoditas)
+f4 = k4.selectbox("Kualitas", kualitas)
 
 df_main = df.copy()
 
-if f1_k != "All":
-    df_main = df_main[df_main["jenis_kuesioner"] == f1_k]
-if f1_b != "All":
-    df_main = df_main[df_main["bulan"] == f1_b]
-if f1_ko != "All":
-    df_main = df_main[df_main["komoditas"] == f1_ko]
-if f1_ku != "All":
-    df_main = df_main[df_main["kualitas"] == f1_ku]
+if f1 != "All": df_main = df_main[df_main["jenis_kuesioner"] == f1]
+if f2 != "All": df_main = df_main[df_main["bulan"] == f2]
+if f3 != "All": df_main = df_main[df_main["komoditas"] == f3]
+if f4 != "All": df_main = df_main[df_main["kualitas"] == f4]
 
-df_main_display = df_main[[
-    "tanggal","komoditas","kualitas",
-    "harga sebelum","harga sekarang","persentase_perubahan"
-]].copy()
+# ======================
+# DATA TABLE
+# ======================
+st.markdown("### 📊 Data Utama")
 
-df_main_display["tanggal"] = df_main_display["tanggal"].dt.date
-df_main_display["harga sebelum"] = df_main_display["harga sebelum"].map(lambda x: f"Rp {x:,.0f}")
-df_main_display["harga sekarang"] = df_main_display["harga sekarang"].map(lambda x: f"Rp {x:,.0f}")
-df_main_display["persentase_perubahan"] = df_main_display["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
+df_display = df_main.copy()
+df_display["tanggal"] = df_display["tanggal"].dt.date
+df_display["harga sebelum"] = df_display["harga sebelum"].map(lambda x: f"Rp {x:,.0f}")
+df_display["harga sekarang"] = df_display["harga sekarang"].map(lambda x: f"Rp {x:,.0f}")
+df_display["persentase_perubahan"] = df_display["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
 
-st.dataframe(df_main_display, width="stretch")
+st.dataframe(df_display, use_container_width=True)
 
 # ======================
 # ANALISIS
 # ======================
-st.subheader("Analisis")
+st.markdown("### 🧠 Insight")
 
-c1,c2,c3,c4 = st.columns(4)
+df_analysis = df_main[["komoditas","kualitas","persentase_perubahan","catatan"]].copy()
 
-f2_k = c1.selectbox("Kuesioner", kuesioner_list, key="f2k")
-
-df_temp = df.copy()
-if f2_k != "All":
-    df_temp = df_temp[df_temp["jenis_kuesioner"] == f2_k]
-
-bulan_dynamic = ["All"] + sorted(df_temp["bulan"].dropna().unique())
-f2_b = c2.selectbox("Bulan", bulan_dynamic, key="f2b")
-
-if f2_b != "All":
-    df_temp = df_temp[df_temp["bulan"] == f2_b]
-
-komoditas_dynamic = ["All"] + sorted(df_temp["komoditas"].astype(str).unique())
-f2_ko = c3.selectbox("Komoditas", komoditas_dynamic, key="f2ko")
-
-if f2_ko != "All":
-    df_temp = df_temp[df_temp["komoditas"] == f2_ko]
-
-kualitas_dynamic = ["All"] + sorted(df_temp["kualitas"].astype(str).unique())
-f2_ku = c4.selectbox("Kualitas", kualitas_dynamic, key="f2ku")
-
-# FINAL FILTER
-df_analysis = df.copy()
-
-if f2_k != "All":
-    df_analysis = df_analysis[df_analysis["jenis_kuesioner"] == f2_k]
-if f2_b != "All":
-    df_analysis = df_analysis[df_analysis["bulan"] == f2_b]
-if f2_ko != "All":
-    df_analysis = df_analysis[df_analysis["komoditas"] == f2_ko]
-if f2_ku != "All":
-    df_analysis = df_analysis[df_analysis["kualitas"] == f2_ku]
-
-df_analysis = df_analysis[[
-    "komoditas","kualitas","persentase_perubahan","catatan"
-]].copy()
-
-# ======================
-# CLEAN TEXT FUNCTION
-# ======================
 def clean_text(text):
     text = text.lower().strip()
     text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text)
     text = re.sub(r'\s+', ' ', text)
     return text
 
-# ======================
-# AI INSIGHT (FINAL)
-# ======================
 if not df_analysis.empty:
 
     rata2 = df_analysis["persentase_perubahan"].mean().round(2)
-
     df_analysis["abs"] = df_analysis["persentase_perubahan"].abs()
     df_analysis = df_analysis.sort_values("abs", ascending=False)
     top = df_analysis.iloc[0]
 
     arah = "inflasi" if rata2 > 0 else "deflasi"
 
-    # ambil semua catatan top komoditas
     df_top = df_analysis[
         (df_analysis["komoditas"] == top["komoditas"]) &
         (df_analysis["kualitas"] == top["kualitas"])
     ]
 
-    catatan_list = df_top["catatan"].dropna().tolist()
-
-    cleaned = [clean_text(c) for c in catatan_list]
-
+    catatan = df_top["catatan"].dropna().tolist()
     unik = []
-    for kalimat in cleaned:
-        if not any(kalimat in u or u in kalimat for u in unik):
-            unik.append(kalimat)
 
-    sebab = ", ".join(unik)
-    sebab = sebab.capitalize() if sebab else "Tidak ada keterangan utama"
+    for c in [clean_text(x) for x in catatan]:
+        if not any(c in u or u in c for u in unik):
+            unik.append(c)
 
-    narasi = (
-        f"Pada {f2_b}, perkembangan harga menunjukkan kecenderungan {arah} sebesar {rata2:.2f} persen. "
-        f"Perubahan ini terutama dipengaruhi oleh komoditas {top['komoditas']} dengan kualitas {top['kualitas']}, "
-        f"yang mengalami perubahan sebesar {top['persentase_perubahan']:.2f} persen. "
-        f"Secara umum, kondisi tersebut dipengaruhi oleh {sebab}."
-    )
+    sebab = ", ".join(unik).capitalize()
 
-    if arah == "inflasi":
-        st.markdown(f"<div class='box-red'>{narasi}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='box-green'>{narasi}</div>", unsafe_allow_html=True)
+    narasi = f"""
+    Pergerakan harga menunjukkan kecenderungan <b>{arah}</b> sebesar <b>{rata2:.2f}%</b>.
+    Dipengaruhi oleh <b>{top['komoditas']}</b> ({top['kualitas']}) sebesar <b>{top['persentase_perubahan']:.2f}%</b>.
+    Penyebab utama: {sebab}.
+    """
+
+    warna = "box-red" if arah == "inflasi" else "box-green"
+
+    st.markdown(f"<div class='card {warna}'>{narasi}</div>", unsafe_allow_html=True)
 
 # ======================
-# TABEL
+# HARGA TIDUR
 # ======================
-df_naik = df_analysis[df_analysis["persentase_perubahan"] > 0].sort_values("persentase_perubahan", ascending=False)
-df_turun = df_analysis[df_analysis["persentase_perubahan"] < 0].sort_values("persentase_perubahan", ascending=True)
+df_tidur = df[df["persentase_perubahan"] == 0].copy()
+df_tidur["bulan_dt"] = df_tidur["tanggal"].dt.to_period("M")
 
-df_naik["persentase_perubahan"] = df_naik["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
-df_turun["persentase_perubahan"] = df_turun["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
-
-st.subheader("🔴 Inflasi")
-st.dataframe(df_naik[["komoditas","kualitas","persentase_perubahan","catatan"]], width="stretch")
-
-st.subheader("🟢 Deflasi")
-st.dataframe(df_turun[["komoditas","kualitas","persentase_perubahan","catatan"]], width="stretch")
-
-# ======================
-# HARGA TIDUR (3 BULAN BERTURUT-TURUT = 0)
-# ======================
-
-# proses
-df_tidur = df.copy()
-df_tidur = df_tidur.sort_values("tanggal")
-
-# ambil yang perubahan = 0
-df_tidur = df_tidur[df_tidur["persentase_perubahan"] == 0]
-
-# buat bulan
-df_tidur["bulan_dt"] = pd.to_datetime(df_tidur["tanggal"]).dt.to_period("M")
-
-# hitung jumlah bulan unik per komoditas + kualitas
-tidur_group = (
-    df_tidur
-    .groupby(["komoditas", "kualitas"])["bulan_dt"]
-    .nunique()
-    .reset_index()
-)
-
-# ambil yang >= 3 bulan
+tidur_group = df_tidur.groupby(["komoditas","kualitas"])["bulan_dt"].nunique().reset_index()
 tidur_final = tidur_group[tidur_group["bulan_dt"] >= 3]
 
-# ======================
-# TAMPILKAN
-# ======================
-st.markdown("""
-### 🛌 Harga Tidur
-<small>Komoditas yang tidak mengalami perubahan harga selama 3 bulan berturut-turut</small>
-""", unsafe_allow_html=True)
+st.markdown("### 🛌 Harga Tidur")
 
 if not tidur_final.empty:
-    st.dataframe(
-        tidur_final[["komoditas", "kualitas"]],
-        width="stretch"
-    )
+    st.dataframe(tidur_final[["komoditas","kualitas"]], use_container_width=True)
 else:
-    st.warning("Tidak ada komoditas dengan harga tidur")
+    st.info("Tidak ada harga tidur")
 
 # ======================
 # GRAFIK
 # ======================
-st.subheader("📈 Tren Harga")
+st.markdown("### 📈 Tren Harga")
 
-komoditas_grafik = st.selectbox("Pilih Komoditas", sorted(df["komoditas"].unique()))
+kom = st.selectbox("Pilih Komoditas", sorted(df["komoditas"].unique()))
+df_grafik = df[df["komoditas"] == kom]
 
-df_grafik = df[df["komoditas"] == komoditas_grafik]
 df_grafik = df_grafik.groupby(["tanggal","kualitas"], as_index=False)["harga sekarang"].mean()
 
-fig = px.line(df_grafik, x="tanggal", y="harga sekarang", color="kualitas", line_shape="spline")
-
-st.plotly_chart(fig, width="stretch")
+fig = px.line(df_grafik, x="tanggal", y="harga sekarang", color="kualitas")
+st.plotly_chart(fig, use_container_width=True)
