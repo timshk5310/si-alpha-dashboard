@@ -48,6 +48,7 @@ df.columns = df.columns.str.strip().str.lower()
 # ======================
 df["tanggal"] = pd.to_datetime(df["tanggal"], errors='coerce')
 df["bulan"] = df["tanggal"].dt.to_period("M").astype(str)
+df["periode"] = df["tanggal"].dt.strftime("%d-%m-%Y")
 
 df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='coerce').fillna(0)
 df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
@@ -71,11 +72,11 @@ f1_k = c1.selectbox("Kuesioner", kuesioner_list)
 if f1_k != "All":
     df_main = df_main[df_main["jenis_kuesioner"] == f1_k]
 
-bulan_list = ["All"] + sorted(df_main["bulan"].dropna().unique())
-f1_b = c2.selectbox("Bulan", bulan_list)
+periode_list = ["All"] + sorted(df_main["periode"].dropna().unique())
+f1_b = c2.selectbox("Periode", periode_list)
 
 if f1_b != "All":
-    df_main = df_main[df_main["bulan"] == f1_b]
+    df_main = df_main[df_main["periode"] == f1_b]
 
 komoditas_list = ["All"] + sorted(df_main["komoditas"].astype(str).unique())
 f1_ko = c3.selectbox("Komoditas", komoditas_list)
@@ -122,12 +123,12 @@ fa_k = a1.selectbox("Kuesioner", ["All"] + sorted(df["jenis_kuesioner"].astype(s
 if fa_k != "All":
     df_analysis_filter = df_analysis_filter[df_analysis_filter["jenis_kuesioner"] == fa_k]
 
-bulan_dyn = ["All"] + sorted(df_analysis_filter["bulan"].dropna().unique())
-fa_b = a2.selectbox("Bulan", bulan_dyn, key="a2")
+periode_dyn = ["All"] + sorted(df_analysis_filter["periode"].dropna().unique())
+fa_b = a2.selectbox("Periode", periode_dyn, key="a2")
 
 if fa_b != "All":
-    df_analysis_filter = df_analysis_filter[df_analysis_filter["bulan"] == fa_b]
-
+    df_analysis_filter = df_analysis_filter[df_analysis_filter["periode"] == fa_b]
+    
 kom_dyn = ["All"] + sorted(df_analysis_filter["komoditas"].astype(str).unique())
 fa_ko = a3.selectbox("Komoditas", kom_dyn, key="a3")
 
