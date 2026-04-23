@@ -48,17 +48,35 @@ df.columns = df.columns.str.strip().str.lower()
 # ======================
 df["tanggal"] = pd.to_datetime(df["tanggal"], errors='coerce')
 df["bulan"] = df["tanggal"].dt.to_period("M").astype(str)
-df["periode"] = df["tanggal"].dt.strftime("%d-%m-%Y")
 
+# ===== FIX PERIODE DARI MINGGU =====
+df["minggu"] = df["jenis_kuesioner"].str.extract(r'Minggu\s*-\s*(\d+)')
+df["minggu"] = df["minggu"].fillna(
+    df["jenis_kuesioner"].str.extract(r'Minggu-(\d+)')[0]
+)
+df["minggu"] = pd.to_numeric(df["minggu"], errors='coerce')
+
+df["periode"] = df.apply(
+    lambda row: pd.Timestamp(
+        year=row["tanggal"].year,
+        month=row["tanggal"].month,
+        day=int(row["minggu"])
+    ) if pd.notna(row["minggu"]) and pd.notna(row["tanggal"]) else pd.NaT,
+    axis=1
+)
+
+df["periode"] = df["periode"].dt.strftime("%d-%m-%Y")
+
+# ======================
+# NUMERIC
+# ======================
 df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='coerce').fillna(0)
 df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
 df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
 df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
 
 # ======================
-# ======================
 # FILTER 1 — DATA UTAMA
-# ======================
 # ======================
 st.subheader("🔎 Informasi Umum")
 
@@ -96,11 +114,10 @@ if f1_ku != "All":
 st.subheader("📊 Tabel Informasi Umum")
 
 df_main_display = df_main[[
-    "tanggal","komoditas","kualitas",
+    "periode","komoditas","kualitas",
     "harga sekarang","harga sebelum","persentase_perubahan"
 ]].copy()
 
-df_main_display["tanggal"] = df_main_display["tanggal"].dt.date
 df_main_display["harga sekarang"] = df_main_display["harga sekarang"].map(lambda x: f"Rp {x:,.0f}")
 df_main_display["harga sebelum"] = df_main_display["harga sebelum"].map(lambda x: f"Rp {x:,.0f}")
 df_main_display["persentase_perubahan"] = df_main_display["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
@@ -108,9 +125,7 @@ df_main_display["persentase_perubahan"] = df_main_display["persentase_perubahan"
 st.dataframe(df_main_display, use_container_width=True)
 
 # ======================
-# ======================
 # FILTER 2 — ANALISIS
-# ======================
 # ======================
 st.subheader("📝 Analisis")
 
@@ -128,7 +143,7 @@ fa_b = a2.selectbox("Periode", periode_dyn, key="a2")
 
 if fa_b != "All":
     df_analysis_filter = df_analysis_filter[df_analysis_filter["periode"] == fa_b]
-    
+
 kom_dyn = ["All"] + sorted(df_analysis_filter["komoditas"].astype(str).unique())
 fa_ko = a3.selectbox("Komoditas", kom_dyn, key="a3")
 
@@ -148,9 +163,6 @@ df_analysis = df_analysis_filter[[
     "komoditas","kualitas","persentase_perubahan","catatan"
 ]].copy()
 
-# ======================
-# CLEAN TEXT
-# ======================
 def clean_text(text):
     text = text.lower().strip()
     text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text)
