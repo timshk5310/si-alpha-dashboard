@@ -53,7 +53,10 @@ df["periode"] = df["tanggal"].dt.strftime("%d-%m-%Y")
 df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='coerce').fillna(0)
 df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
 df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
-df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
+df["catatan"] = df["catatan"].fillna("")
+df["catatan"] = df["catatan"].astype(str).apply(
+    lambda x: "" if x.strip().lower() in ["tidak ada keterangan", "nan", "-"] else x
+)
 df["responden"] = df["responden"].fillna("tidak diketahui")
 
 # ======================
@@ -179,7 +182,7 @@ if not df_analysis.empty:
         (df_analysis["kualitas"] == top["kualitas"])
     ]
 
-    catatan_list = df_top["catatan"].dropna().tolist()
+    catatan_list = [c for c in df_top["catatan"].dropna().tolist() if c.strip()]
     cleaned = [clean_text(c) for c in catatan_list]
 
     unik = []
