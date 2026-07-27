@@ -98,7 +98,7 @@ st.subheader("📊 Tabel Informasi Umum")
 
 df_main_display = df_main[[
     "tanggal","responden","komoditas","kualitas",
-    "harga sekarang","harga sebelum","persentase_perubahan"
+    "harga sekarang","harga sebelum","persentase_perubahan","catatan"
 ]].copy()
 
 df_main_display["tanggal"] = df_main_display["tanggal"].dt.date
