@@ -54,6 +54,7 @@ df["persentase_perubahan"] = pd.to_numeric(df["persentase_perubahan"], errors='c
 df["harga sekarang"] = pd.to_numeric(df["harga sekarang"], errors='coerce')
 df["harga sebelum"] = pd.to_numeric(df["harga sebelum"], errors='coerce')
 df["catatan"] = df["catatan"].fillna("tidak ada keterangan")
+df["responden"] = df["responden"].fillna("tidak diketahui")
 
 # ======================
 # ======================
@@ -96,7 +97,7 @@ if f1_ku != "All":
 st.subheader("📊 Tabel Informasi Umum")
 
 df_main_display = df_main[[
-    "tanggal","komoditas","kualitas",
+    "tanggal","responden","komoditas","kualitas",
     "harga sekarang","harga sebelum","persentase_perubahan"
 ]].copy()
 
@@ -145,7 +146,7 @@ if fa_ku != "All":
 # ANALISIS DATA
 # ======================
 df_analysis = df_analysis_filter[[
-    "komoditas","kualitas","persentase_perubahan","catatan"
+    "komoditas","kualitas","responden","persentase_perubahan","catatan"
 ]].copy()
 
 # ======================
@@ -211,11 +212,11 @@ c1,c2 = st.columns(2)
 
 with c1:
     st.markdown("#### 🔴 Inflasi")
-    st.dataframe(df_naik[["komoditas","kualitas","persentase_perubahan","catatan"]], use_container_width=True)
+    st.dataframe(df_naik[["komoditas","kualitas","responden","persentase_perubahan","catatan"]], use_container_width=True)
 
 with c2:
     st.markdown("#### 🟢 Deflasi")
-    st.dataframe(df_turun[["komoditas","kualitas","persentase_perubahan","catatan"]], use_container_width=True)
+    st.dataframe(df_turun[["komoditas","kualitas","responden","persentase_perubahan","catatan"]], use_container_width=True)
 
 # ======================
 # HARGA TIDUR
@@ -223,11 +224,14 @@ with c2:
 df_tidur = df[df["persentase_perubahan"] == 0].copy()
 df_tidur["bulan_dt"] = df_tidur["tanggal"].dt.to_period("M")
 
-tidur_group = df_tidur.groupby(["komoditas","kualitas"])["bulan_dt"].nunique().reset_index()
+tidur_group = df_tidur.groupby(["komoditas","kualitas"]).agg(
+    bulan_dt=("bulan_dt","nunique"),
+    responden=("responden", lambda x: ", ".join(sorted(set(x))))
+).reset_index()
 tidur_final = tidur_group[tidur_group["bulan_dt"] >= 3]
 
 st.subheader("🛌 Harga Tidur")
-st.dataframe(tidur_final[["komoditas","kualitas"]], use_container_width=True)
+st.dataframe(tidur_final[["komoditas","kualitas","responden"]], use_container_width=True)
 
 # ======================
 # GRAFIK
