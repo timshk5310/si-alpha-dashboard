@@ -2,6 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
+from difflib import get_close_matches
+
+# ======================
+# CONFIG (harus paling atas)
+# ======================
+st.set_page_config(page_title="Si Alpha Dashboard", layout="wide")
 
 # ======================
 # LOGIN
@@ -21,11 +27,6 @@ if not st.session_state["login"]:
         st.stop()
 
 # ======================
-# CONFIG
-# ======================
-st.set_page_config(page_title="Si Alpha Dashboard", layout="wide")
-
-# ======================
 # HEADER
 # ======================
 st.markdown("""
@@ -37,10 +38,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ======================
-# LOAD DATA
+# LOAD DATA (di-cache 5 menit supaya tidak download ulang tiap klik)
 # ======================
 url = "https://docs.google.com/spreadsheets/d/1EhwFtO0nBm4w10yZYr18Jft77lVvUtUN/export?format=xlsx"
-df = pd.read_excel(url)
+
+@st.cache_data(ttl=300)
+def load_data(u):
+    return pd.read_excel(u)
+
+df = load_data(url).copy()
 df.columns = df.columns.str.strip().str.lower()
 
 # ======================
@@ -60,9 +66,7 @@ df["catatan"] = df["catatan"].astype(str).apply(
 df["responden"] = df["responden"].fillna("tidak diketahui")
 
 # ======================
-# ======================
 # FILTER 1 — DATA UTAMA
-# ======================
 # ======================
 st.subheader("🔎 Informasi Umum")
 
@@ -112,9 +116,7 @@ df_main_display["persentase_perubahan"] = df_main_display["persentase_perubahan"
 st.dataframe(df_main_display, use_container_width=True)
 
 # ======================
-# ======================
 # FILTER 2 — ANALISIS
-# ======================
 # ======================
 st.subheader("📝 Analisis")
 
@@ -132,7 +134,7 @@ fa_b = a2.selectbox("Periode", periode_dyn, key="a2")
 
 if fa_b != "All":
     df_analysis_filter = df_analysis_filter[df_analysis_filter["periode"] == fa_b]
-    
+
 kom_dyn = ["All"] + sorted(df_analysis_filter["komoditas"].astype(str).unique())
 fa_ko = a3.selectbox("Komoditas", kom_dyn, key="a3")
 
@@ -205,8 +207,8 @@ if not df_analysis.empty:
 # ======================
 # TABEL INFLASI DEFLASI
 # ======================
-df_naik = df_analysis[df_analysis["persentase_perubahan"] > 0]
-df_turun = df_analysis[df_analysis["persentase_perubahan"] < 0]
+df_naik = df_analysis[df_analysis["persentase_perubahan"] > 0].copy()
+df_turun = df_analysis[df_analysis["persentase_perubahan"] < 0].copy()
 
 df_naik["persentase_perubahan"] = df_naik["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
 df_turun["persentase_perubahan"] = df_turun["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
@@ -249,3 +251,132 @@ df_grafik = df_grafik.groupby(["tanggal","kualitas"], as_index=False)["harga sek
 fig = px.line(df_grafik, x="tanggal", y="harga sekarang", color="kualitas")
 
 st.plotly_chart(fig, use_container_width=True)
+
+# ======================
+# CEK ANGKA SEMENTARA (FITUR BARU)
+# ======================
+st.subheader("✅ Cek Angka Sementara vs Catatan")
+
+def norm(x):
+    return re.sub(r"\s+", " ", str(x).strip().lower())
+
+def baca_sementara(file):
+    raw = pd.read_excel(file, header=None, dtype=str)
+    # cari baris header (yang berisi kolom "Nama")
+    baris = raw.apply(lambda r: r.astype(str).str.strip().str.lower().eq("nama").any(), axis=1)
+    if not baris.any():
+        return None
+    hdr = baris.idxmax()
+    d = pd.read_excel(file, skiprows=hdr, dtype={"Bulan": str, "Tahun": str})
+    d.columns = d.columns.astype(str).str.strip().str.lower()
+    return d
+
+file_sementara = st.file_uploader(
+    "Upload Excel angka sementara", type=["xlsx", "xls"], key="upload_sementara"
+)
+
+if file_sementara is not None:
+    df_sem = baca_sementara(file_sementara)
+
+    kolom_wajib = ["nama", "inf(mom)", "andil(mom)"]
+    if df_sem is None or any(k not in df_sem.columns for k in kolom_wajib):
+        st.error("Format file tidak dikenali. Butuh kolom: Nama, INF(MOM), ANDIL(MOM).")
+        st.stop()
+
+    df_sem["inf(mom)"] = pd.to_numeric(df_sem["inf(mom)"], errors="coerce").fillna(0)
+    df_sem["andil(mom)"] = pd.to_numeric(df_sem["andil(mom)"], errors="coerce").fillna(0)
+    df_sem["_kom"] = df_sem["nama"].apply(norm)
+
+    # bulan otomatis dari file (format sama dengan kolom 'bulan' di df: 2026-09)
+    bulan_file = f"{str(df_sem['tahun'].iloc[0]).strip()}-{str(df_sem['bulan'].iloc[0]).strip().zfill(2)}"
+    bulan_list = sorted(df["bulan"].dropna().unique())
+    idx = bulan_list.index(bulan_file) if bulan_file in bulan_list else len(bulan_list) - 1
+
+    c1, c2 = st.columns(2)
+    bulan_pilih = c1.selectbox("Bulan data entri", bulan_list, index=idx, key="bulan_sem")
+    ambang = c2.number_input("Tampilkan komoditas dengan |inflasi MoM| ≥ (%)",
+                             min_value=0.0, value=0.01, step=0.5, key="ambang_sem")
+
+    if bulan_file not in bulan_list:
+        st.warning(f"Bulan di file ({bulan_file}) belum ada di data entri. Menampilkan {bulan_pilih}.")
+
+    # hanya yang naik/turun
+    df_sem = df_sem[df_sem["inf(mom)"].abs() >= ambang].copy()
+    df_sem["_abs_andil"] = df_sem["andil(mom)"].abs()
+    df_sem = df_sem.sort_values("_abs_andil", ascending=False).drop(columns="_abs_andil")
+
+    # data entri bulan tsb
+    df["_kom"] = df["komoditas"].apply(norm)
+    df_bulan = df[df["bulan"] == bulan_pilih]
+    nama_entri = df_bulan["_kom"].unique().tolist()
+
+    # matching: persis dulu, lalu mirip
+    def cocokkan(k):
+        if k in nama_entri:
+            return k, "Persis"
+        m = get_close_matches(k, nama_entri, n=1, cutoff=0.85)
+        return (m[0], "Mirip") if m else (None, "-")
+
+    hasil = df_sem["_kom"].apply(cocokkan)
+    df_sem["_match"] = hasil.apply(lambda x: x[0])
+    df_sem["pencocokan"] = hasil.apply(lambda x: x[1])
+
+    # ringkasan
+    ringkasan = []
+    for _, r in df_sem.iterrows():
+        d = df_bulan[df_bulan["_kom"] == r["_match"]] if r["_match"] else df_bulan.iloc[0:0]
+        n_cat = int((d["catatan"].str.strip() != "").sum())
+        ringkasan.append({
+            "komoditas": r["nama"],
+            "inflasi MoM (%)": r["inf(mom)"],
+            "andil MoM": r["andil(mom)"],
+            "arah": "Naik" if r["inf(mom)"] > 0 else "Turun",
+            "data entri": len(d),
+            "jumlah catatan": n_cat,
+            "pencocokan": r["pencocokan"],
+            "status": "Ada catatan" if n_cat > 0
+                      else ("Tidak ada catatan" if len(d) > 0 else "Tidak ada di entri"),
+        })
+    df_ring = pd.DataFrame(ringkasan)
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Komoditas naik/turun", len(df_ring))
+    m2.metric("Sudah ada catatan", int((df_ring["status"] == "Ada catatan").sum()))
+    m3.metric("Belum ada catatan / data", int((df_ring["status"] != "Ada catatan").sum()))
+
+    filter_status = st.radio("Tampilkan", ["Semua", "Ada catatan", "Tidak ada catatan", "Tidak ada di entri"],
+                             horizontal=True, key="filter_status_sem")
+    df_tampil = df_ring if filter_status == "Semua" else df_ring[df_ring["status"] == filter_status]
+    st.dataframe(df_tampil, use_container_width=True, hide_index=True)
+
+    # detail
+    st.markdown("#### 📋 Detail Catatan per Komoditas")
+    opsi = df_tampil["komoditas"].tolist()
+    if not opsi:
+        st.info("Tidak ada komoditas untuk filter ini.")
+        st.stop()
+
+    pilih = st.selectbox("Pilih komoditas", opsi, key="pilih_kom_sem")
+    r = df_sem[df_sem["nama"] == pilih].iloc[0]
+
+    a, b, c = st.columns(3)
+    a.metric("Inflasi MoM", f"{r['inf(mom)']:.2f}%")
+    b.metric("Andil MoM", f"{r['andil(mom)']:.4f}")
+    c.metric("Pencocokan", r["pencocokan"])
+
+    if not r["_match"]:
+        st.warning("Komoditas ini tidak ditemukan di data entri bulan tersebut.")
+    else:
+        d = df_bulan[df_bulan["_kom"] == r["_match"]]
+        if r["pencocokan"] == "Mirip":
+            st.caption(f"Dicocokkan dengan komoditas entri: **{d['komoditas'].iloc[0]}**")
+
+        d_cat = d[d["catatan"].str.strip() != ""]
+        if d_cat.empty:
+            st.warning("Ada data entri, tapi tidak ada catatan alasan perubahan.")
+        else:
+            for kualitas, g in d_cat.groupby("kualitas"):
+                st.markdown(f"**{kualitas}**")
+                tampil = g[["periode", "responden", "persentase_perubahan", "catatan"]].copy()
+                tampil["persentase_perubahan"] = tampil["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
+                st.dataframe(tampil, use_container_width=True, hide_index=True)
