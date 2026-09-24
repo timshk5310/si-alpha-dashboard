@@ -1,8 +1,11 @@
+import io
+import re
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import re
 from difflib import get_close_matches
+from openpyxl.styles import Alignment
+from openpyxl.utils import get_column_letter
 
 # ======================
 # CONFIG (harus paling atas)
@@ -257,6 +260,19 @@ st.plotly_chart(fig, use_container_width=True)
 # ======================
 st.subheader("✅ Cek Angka Sementara vs Catatan")
 
+# kolom dari file angka sementara -> judul kolom di tabel
+KOLOM_TAMPIL = {
+    "nama": "Nama",
+    "flag": "Flag",
+    "ihk": "IHK",
+    "inf(mom)": "Inf (MoM)",
+    "inf(ytd)": "Inf (YTD)",
+    "inf(yoy)": "Inf (YoY)",
+    "andil(mom)": "Andil (MoM)",
+    "andil(ytd)": "Andil (YTD)",
+    "andil(yoy)": "Andil (YoY)",
+}
+
 def norm(x):
     return re.sub(r"\s+", " ", str(x).strip().lower())
 
@@ -267,9 +283,19 @@ def baca_sementara(file):
     if not baris.any():
         return None
     hdr = baris.idxmax()
-    d = pd.read_excel(file, skiprows=hdr, dtype={"Bulan": str, "Tahun": str})
+    d = pd.read_excel(file, skiprows=hdr, dtype={"Bulan": str, "Tahun": str, "Kode": str})
     d.columns = d.columns.astype(str).str.strip().str.lower()
     return d
+
+def catatan_responden(g):
+    """Gabungkan catatan satu responden (bisa beberapa kualitas/minggu)."""
+    bagian = []
+    for _, x in g.sort_values(["kualitas", "tanggal"]).iterrows():
+        cat = x["catatan"].strip() if isinstance(x["catatan"], str) else ""
+        if cat:
+            bagian.append(f"[{x['kualitas']}, {x['persentase_perubahan']:+.2f}%] {cat}")
+    bagian = list(dict.fromkeys(bagian))  # buang duplikat, urutan tetap
+    return " | ".join(bagian) if bagian else "Tidak ada catatan"
 
 file_sementara = st.file_uploader(
     "Upload Excel angka sementara", type=["xlsx", "xls"], key="upload_sementara"
@@ -278,105 +304,121 @@ file_sementara = st.file_uploader(
 if file_sementara is not None:
     df_sem = baca_sementara(file_sementara)
 
-    kolom_wajib = ["nama", "inf(mom)", "andil(mom)"]
+    kolom_wajib = ["nama", "tahun", "bulan"]
     if df_sem is None or any(k not in df_sem.columns for k in kolom_wajib):
-        st.error("Format file tidak dikenali. Butuh kolom: Nama, INF(MOM), ANDIL(MOM).")
-        st.stop()
-
-    df_sem["inf(mom)"] = pd.to_numeric(df_sem["inf(mom)"], errors="coerce").fillna(0)
-    df_sem["andil(mom)"] = pd.to_numeric(df_sem["andil(mom)"], errors="coerce").fillna(0)
-    df_sem["_kom"] = df_sem["nama"].apply(norm)
-
-    # bulan otomatis dari file (format sama dengan kolom 'bulan' di df: 2026-09)
-    bulan_file = f"{str(df_sem['tahun'].iloc[0]).strip()}-{str(df_sem['bulan'].iloc[0]).strip().zfill(2)}"
-    bulan_list = sorted(df["bulan"].dropna().unique())
-    idx = bulan_list.index(bulan_file) if bulan_file in bulan_list else len(bulan_list) - 1
-
-    c1, c2 = st.columns(2)
-    bulan_pilih = c1.selectbox("Bulan data entri", bulan_list, index=idx, key="bulan_sem")
-    ambang = c2.number_input("Tampilkan komoditas dengan |inflasi MoM| ≥ (%)",
-                             min_value=0.0, value=0.01, step=0.5, key="ambang_sem")
-
-    if bulan_file not in bulan_list:
-        st.warning(f"Bulan di file ({bulan_file}) belum ada di data entri. Menampilkan {bulan_pilih}.")
-
-    # hanya yang naik/turun
-    df_sem = df_sem[df_sem["inf(mom)"].abs() >= ambang].copy()
-    df_sem["_abs_andil"] = df_sem["andil(mom)"].abs()
-    df_sem = df_sem.sort_values("_abs_andil", ascending=False).drop(columns="_abs_andil")
-
-    # data entri bulan tsb
-    df["_kom"] = df["komoditas"].apply(norm)
-    df_bulan = df[df["bulan"] == bulan_pilih]
-    nama_entri = df_bulan["_kom"].unique().tolist()
-
-    # matching: persis dulu, lalu mirip
-    def cocokkan(k):
-        if k in nama_entri:
-            return k, "Persis"
-        m = get_close_matches(k, nama_entri, n=1, cutoff=0.85)
-        return (m[0], "Mirip") if m else (None, "-")
-
-    hasil = df_sem["_kom"].apply(cocokkan)
-    df_sem["_match"] = hasil.apply(lambda x: x[0])
-    df_sem["pencocokan"] = hasil.apply(lambda x: x[1])
-
-    # ringkasan
-    ringkasan = []
-    for _, r in df_sem.iterrows():
-        d = df_bulan[df_bulan["_kom"] == r["_match"]] if r["_match"] else df_bulan.iloc[0:0]
-        n_cat = int((d["catatan"].str.strip() != "").sum())
-        ringkasan.append({
-            "komoditas": r["nama"],
-            "inflasi MoM (%)": r["inf(mom)"],
-            "andil MoM": r["andil(mom)"],
-            "arah": "Naik" if r["inf(mom)"] > 0 else "Turun",
-            "data entri": len(d),
-            "jumlah catatan": n_cat,
-            "pencocokan": r["pencocokan"],
-            "status": "Ada catatan" if n_cat > 0
-                      else ("Tidak ada catatan" if len(d) > 0 else "Tidak ada di entri"),
-        })
-    df_ring = pd.DataFrame(ringkasan)
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Komoditas naik/turun", len(df_ring))
-    m2.metric("Sudah ada catatan", int((df_ring["status"] == "Ada catatan").sum()))
-    m3.metric("Belum ada catatan / data", int((df_ring["status"] != "Ada catatan").sum()))
-
-    filter_status = st.radio("Tampilkan", ["Semua", "Ada catatan", "Tidak ada catatan", "Tidak ada di entri"],
-                             horizontal=True, key="filter_status_sem")
-    df_tampil = df_ring if filter_status == "Semua" else df_ring[df_ring["status"] == filter_status]
-    st.dataframe(df_tampil, use_container_width=True, hide_index=True)
-
-    # detail
-    st.markdown("#### 📋 Detail Catatan per Komoditas")
-    opsi = df_tampil["komoditas"].tolist()
-    if not opsi:
-        st.info("Tidak ada komoditas untuk filter ini.")
-        st.stop()
-
-    pilih = st.selectbox("Pilih komoditas", opsi, key="pilih_kom_sem")
-    r = df_sem[df_sem["nama"] == pilih].iloc[0]
-
-    a, b, c = st.columns(3)
-    a.metric("Inflasi MoM", f"{r['inf(mom)']:.2f}%")
-    b.metric("Andil MoM", f"{r['andil(mom)']:.4f}")
-    c.metric("Pencocokan", r["pencocokan"])
-
-    if not r["_match"]:
-        st.warning("Komoditas ini tidak ditemukan di data entri bulan tersebut.")
+        st.error("Format file tidak dikenali. Butuh minimal kolom: Nama, Tahun, Bulan.")
     else:
-        d = df_bulan[df_bulan["_kom"] == r["_match"]]
-        if r["pencocokan"] == "Mirip":
-            st.caption(f"Dicocokkan dengan komoditas entri: **{d['komoditas'].iloc[0]}**")
+        # kolom angka jadi numerik
+        for k in KOLOM_TAMPIL:
+            if k not in ("nama", "flag") and k in df_sem.columns:
+                df_sem[k] = pd.to_numeric(df_sem[k], errors="coerce")
 
-        d_cat = d[d["catatan"].str.strip() != ""]
-        if d_cat.empty:
-            st.warning("Ada data entri, tapi tidak ada catatan alasan perubahan.")
+        df_sem = df_sem[df_sem["nama"].notna()].copy()
+        df_sem["_kom"] = df_sem["nama"].apply(norm)
+
+        # bulan otomatis dari file (format sama dengan kolom 'bulan' di df: 2026-09)
+        bulan_file = f"{str(df_sem['tahun'].iloc[0]).strip()}-{str(df_sem['bulan'].iloc[0]).strip().zfill(2)}"
+        bulan_list = sorted(df["bulan"].dropna().unique())
+        idx = bulan_list.index(bulan_file) if bulan_file in bulan_list else len(bulan_list) - 1
+
+        c1, c2 = st.columns(2)
+        bulan_pilih = c1.selectbox("Bulan data entri", bulan_list, index=idx, key="bulan_sem")
+        ambang = c2.number_input(
+            "Tampilkan hanya komoditas dengan |Inf (MoM)| ≥ (%) — isi 0 untuk semua",
+            min_value=0.0, value=0.0, step=0.5, key="ambang_sem"
+        )
+
+        if bulan_file not in bulan_list:
+            st.warning(f"Bulan di file ({bulan_file}) belum ada di data entri. Menampilkan {bulan_pilih}.")
+
+        if ambang > 0 and "inf(mom)" in df_sem.columns:
+            df_sem = df_sem[df_sem["inf(mom)"].abs() >= ambang].copy()
+
+        # data entri bulan tsb
+        df["_kom"] = df["komoditas"].apply(norm)
+        df_bulan = df[df["bulan"] == bulan_pilih]
+        nama_entri = df_bulan["_kom"].unique().tolist()
+
+        # matching: persis dulu, lalu mirip
+        def cocokkan(k):
+            if k in nama_entri:
+                return k
+            m = get_close_matches(k, nama_entri, n=1, cutoff=0.85)
+            return m[0] if m else None
+
+        df_sem["_match"] = df_sem["_kom"].apply(cocokkan)
+
+        # ---------- bangun tabel: 1 baris per responden ----------
+        rows = []
+        for _, r in df_sem.iterrows():
+            base = {label: r[k] for k, label in KOLOM_TAMPIL.items() if k in df_sem.columns}
+            d = df_bulan[df_bulan["_kom"] == r["_match"]] if r["_match"] else df_bulan.iloc[0:0]
+
+            if d.empty:
+                rows.append({**base, "Responden": "-", "Catatan": "Tidak ada data di entri"})
+            else:
+                for responden, g in d.groupby("responden"):
+                    rows.append({**base, "Responden": responden, "Catatan": catatan_responden(g)})
+
+        df_out = pd.DataFrame(rows)
+
+        # ---------- ringkasan ----------
+        n_total = df_out["Nama"].nunique()
+        n_ada = df_out.loc[df_out["Catatan"] != "Tidak ada data di entri", "Nama"].nunique()
+        n_cat = df_out.loc[~df_out["Catatan"].isin(["Tidak ada catatan", "Tidak ada data di entri"]), "Nama"].nunique()
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Komoditas di file", n_total)
+        m2.metric("Ada di data entri", n_ada)
+        m3.metric("Yang punya catatan", n_cat)
+
+        f1, f2, f3 = st.columns([2, 2, 2])
+        cari = f1.text_input("Cari komoditas", key="cari_sem")
+        tampil_kosong = f2.checkbox("Tampilkan juga komoditas yang tidak ada di entri", key="kosong_sem")
+        mode = f3.radio("Tampilan", ["Tabel interaktif", "Tabel teks penuh"],
+                        horizontal=True, key="mode_sem")
+
+        df_show = df_out.copy()
+        if not tampil_kosong:
+            df_show = df_show[df_show["Catatan"] != "Tidak ada data di entri"]
+        if cari.strip():
+            df_show = df_show[df_show["Nama"].str.contains(cari.strip(), case=False, na=False)]
+
+        # ---------- tampil ----------
+        if df_show.empty:
+            st.info("Tidak ada data yang sesuai.")
         else:
-            for kualitas, g in d_cat.groupby("kualitas"):
-                st.markdown(f"**{kualitas}**")
-                tampil = g[["periode", "responden", "persentase_perubahan", "catatan"]].copy()
-                tampil["persentase_perubahan"] = tampil["persentase_perubahan"].map(lambda x: f"{x:.2f}%")
-                st.dataframe(tampil, use_container_width=True, hide_index=True)
+            if mode == "Tabel interaktif":
+                st.dataframe(
+                    df_show, use_container_width=True, hide_index=True,
+                    column_config={"Catatan": st.column_config.TextColumn("Catatan", width="large")}
+                )
+                st.caption("Teks catatan panjang bisa terpotong. Pilih 'Tabel teks penuh' untuk melihat semuanya.")
+            else:
+                st.table(df_show.reset_index(drop=True))
+
+            # ---------- download Excel ----------
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as w:
+                df_show.to_excel(w, index=False, sheet_name="Angka Sementara")
+                ws = w.sheets["Angka Sementara"]
+                for i, nama_kol in enumerate(df_show.columns, start=1):
+                    if nama_kol == "Catatan":
+                        lebar = 90
+                    elif nama_kol == "Nama":
+                        lebar = 35
+                    elif nama_kol == "Responden":
+                        lebar = 22
+                    else:
+                        lebar = 13
+                    ws.column_dimensions[get_column_letter(i)].width = lebar
+                for row in ws.iter_rows(min_row=2):
+                    for cell in row:
+                        cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+            st.download_button(
+                "⬇️ Download Excel",
+                buf.getvalue(),
+                file_name=f"angka_sementara_catatan_{bulan_pilih}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
