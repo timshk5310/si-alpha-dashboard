@@ -339,26 +339,41 @@ if file_sementara is not None:
         df_bulan = df[df["bulan"] == bulan_pilih]
         nama_entri = df_bulan["_kom"].unique().tolist()
 
+        # peta komoditas -> kuesioner
+        # (isi kolom jenis_kuesioner APA ADANYA, sama seperti filter Kuesioner di atas;
+        #  dicari dari seluruh riwayat master, bukan hanya bulan ini)
+        def gabung_kues(s):
+            v = sorted({str(x).strip() for x in s
+                        if str(x).strip() not in ("", "nan", "None", "Unknown")})
+            return ", ".join(v) if v else "-"
+
+        kues_map = df.groupby("_kom")["jenis_kuesioner"].agg(gabung_kues)
+        nama_semua = kues_map.index.tolist()
+
         # matching: persis dulu, lalu mirip
-        def cocokkan(k):
-            if k in nama_entri:
+        def cocokkan(k, daftar):
+            if k in daftar:
                 return k
-            m = get_close_matches(k, nama_entri, n=1, cutoff=0.85)
+            m = get_close_matches(k, daftar, n=1, cutoff=0.85)
             return m[0] if m else None
 
-        df_sem["_match"] = df_sem["_kom"].apply(cocokkan)
+        df_sem["_match"] = df_sem["_kom"].apply(lambda k: cocokkan(k, nama_entri))
+        df_sem["_match_all"] = df_sem["_kom"].apply(lambda k: cocokkan(k, nama_semua))
 
         # ---------- bangun tabel: 1 baris per responden ----------
         rows = []
         for _, r in df_sem.iterrows():
             base = {label: r[k] for k, label in KOLOM_TAMPIL.items() if k in df_sem.columns}
+            kues = kues_map.get(r["_match_all"], "-") if r["_match_all"] else "-"
             d = df_bulan[df_bulan["_kom"] == r["_match"]] if r["_match"] else df_bulan.iloc[0:0]
 
             if d.empty:
-                rows.append({**base, "Responden": "-", "Catatan": "Tidak ada data di entri"})
+                rows.append({**base, "Kuesioner": kues, "Responden": "-",
+                             "Catatan": "Tidak ada data di entri"})
             else:
                 for responden, g in d.groupby("responden"):
-                    rows.append({**base, "Responden": responden, "Catatan": catatan_responden(g)})
+                    rows.append({**base, "Kuesioner": kues, "Responden": responden,
+                                 "Catatan": catatan_responden(g)})
 
         df_out = pd.DataFrame(rows)
 
@@ -372,15 +387,21 @@ if file_sementara is not None:
         m2.metric("Ada di data entri", n_ada)
         m3.metric("Yang punya catatan", n_cat)
 
-        f1, f2, f3 = st.columns([2, 2, 2])
+        f1, f2, f3, f4 = st.columns([2, 2, 3, 2])
         cari = f1.text_input("Cari komoditas", key="cari_sem")
-        tampil_kosong = f2.checkbox("Tampilkan juga komoditas yang tidak ada di entri", key="kosong_sem")
-        mode = f3.radio("Tampilan", ["Tabel interaktif", "Tabel teks penuh"],
-                        horizontal=True, key="mode_sem")
+        opsi_kues = ["Semua"] + sorted({k.strip() for v in df_out["Kuesioner"]
+                                        for k in v.split(",") if k.strip() not in ("", "-")})
+        pilih_kues = f2.selectbox("Kuesioner", opsi_kues, key="kues_sem")
+        tampil_kosong = f3.checkbox("Tampilkan juga komoditas yang tidak ada di entri", key="kosong_sem")
+        mode = f4.radio("Tampilan", ["Tabel interaktif", "Tabel teks penuh"], key="mode_sem")
 
         df_show = df_out.copy()
         if not tampil_kosong:
             df_show = df_show[df_show["Catatan"] != "Tidak ada data di entri"]
+        if pilih_kues != "Semua":
+            df_show = df_show[df_show["Kuesioner"].apply(
+                lambda v: pilih_kues in [x.strip() for x in v.split(",")]
+            )]
         if cari.strip():
             df_show = df_show[df_show["Nama"].str.contains(cari.strip(), case=False, na=False)]
 
@@ -407,7 +428,7 @@ if file_sementara is not None:
                         lebar = 90
                     elif nama_kol == "Nama":
                         lebar = 35
-                    elif nama_kol == "Responden":
+                    elif nama_kol in ("Responden", "Kuesioner"):
                         lebar = 22
                     else:
                         lebar = 13
